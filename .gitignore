@@ -1,71 +1,51 @@
-### C#
-# Build results
+# C# 빌드 결과
 [Bb]in/
 [Oo]bj/
+[Dd]ebug/
+[Rr]elease/
+artifacts/
+publish/
 
-# Visual Studio cache/options directory
+# Visual Studio 임시 파일 및 개인 설정
 .vs/
-
-# User-specific files
 *.suo
 *.user
+*.userosscache
+*.sln.docstates
+UpgradeLog.htm
 
-# Debug symbols
+# 컴파일 중간 파일
 *.pdb
+*.obj
+*.idb
+*.ilk
+*.tlog
+*.recipe
+*.VC.db
+*.opensdf
 
-# NuGet Packages
+# NuGet 패키지
 *.nupkg
+*.snupkg
 **/[Pp]ackages/*
 !**/[Pp]ackages/build/
 
-# .NET build artifacts
-artifacts/
-
-# Publish output
-publish/
-
-### Windows
-# Windows thumbnail cache files
-Thumbs.db
-
-# Folder config file
-[Dd]esktop.ini
-
-# Recycle Bin used on file shares
-$RECYCLE.BIN/
-
-# Windows shortcuts
-*.lnk
-
-### VisualStudio
-# User-specific files
-*.suo
-*.user
-
-# Build results
-[Dd]ebug/
-[Rr]elease/
-x64/
-x86/
-[Ww][Ii][Nn]32/
-[Aa][Rr][Mm]/
-[Aa][Rr][Mm]64/
-[Bb]in/
-[Oo]bj/
-
-# Visual Studio cache/options directory
-.vs/
-
-# MSTest test Results
+# 테스트 결과
 [Tt]est[Rr]esult*/
 [Bb]uild[Ll]og.*
 
-# NuGet
-*.nupkg
-**/[Pp]ackages/*
-!**/[Pp]ackages/build/
-*.nuget.props
-*.nuget.targets
+# Rider 개인 설정 및 캐시
+.idea/
+_ReSharper.Caches/
 
-# Publish Web Output
-*.[Pp]ublish.xml
+# Windows 임시 파일
+Thumbs.db
+ehthumbs.db
+[Dd]esktop.ini
+$RECYCLE.BIN/
+
+# macOS 임시 파일
+.DS_Store
+._*
+.Spotlight-V100/
+.Trashes/
