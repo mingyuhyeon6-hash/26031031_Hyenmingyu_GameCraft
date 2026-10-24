@@ -24,6 +24,7 @@ abstract class G2AppBase : IDisposable
 
 	public double DeltaTime { get; private set; }
 	public double TotalTime { get; private set; }
+	public bool GrayscaleEnabled { get; protected set; }
 
 	public float ScaleX => (float)_mainForm.ClientSize.Width / ScreenSize.Width;
 	public float ScaleY => (float)_mainForm.ClientSize.Height / ScreenSize.Height;

@@ -12,6 +12,7 @@ interface IG2Audio : IDisposable
 	void Play(bool isLooping = false);
 	bool IsPlaying();
 	void Stop();
+	void SetVolume(float volume);
 }
 
 class G2Audio : IDisposable
@@ -49,6 +50,14 @@ class G2Audio : IDisposable
 	public void Stop()
 	{
 		_audio.Stop();
+	}
+
+	// 0은 무음, 1은 원래 소리 크기입니다.
+	public void SetVolume(float volume)
+	{
+		if (!float.IsFinite(volume))
+			throw new ArgumentOutOfRangeException(nameof(volume));
+		_audio.SetVolume(Math.Clamp(volume, 0f, 1f));
 	}
 
 	public void Dispose()

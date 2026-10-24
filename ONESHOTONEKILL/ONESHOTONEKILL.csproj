@@ -8,6 +8,45 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Content Include="..\resource\music\footsteps\stone_walk_left.wav;..\resource\music\footsteps\stone_walk_right.wav" Link="resource\music\footsteps\%(Filename)%(Extension)">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+    <Content Include="..\resource\backgrounds\crow\crow_fly.png" Link="resource\backgrounds\crow\crow_fly.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+    <Content Include="..\resource\music\Mansion Waltz.mp3" Link="resource\music\Mansion Waltz.mp3">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+    <Content Include="..\resource\music\gun sound\Snake's Authentic Gun Sounds\Full Sound\7.62x54R\WAV\762x54r Single WAV.wav" Link="resource\music\gun sound\Snake's Authentic Gun Sounds\Full Sound\7.62x54R\WAV\762x54r Single WAV.wav">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+    <Content Include="..\resource\weapons\effect\All_Fire_Bullet_Pixel_16x16_00.png" Link="resource\weapons\effect\All_Fire_Bullet_Pixel_16x16_00.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+    <Content Include="..\resource\character\Gangsters_1\Shot.png" Link="resource\character\Gangsters_1\Shot.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+    <Content Include="..\resource\character\Gangsters_1\Walk.png" Link="resource\character\Gangsters_1\Walk.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+    <Content Include="..\resource\character\Gangsters_1\Idle.png" Link="resource\character\Gangsters_1\Idle.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+    <Content Include="..\resource\backgrounds\stage1.png" Link="resource\backgrounds\stage1.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="NAudio" Version="3.2.0" />
     <PackageReference Include="Vortice.Direct2D1" Version="3.8.3" />
     <PackageReference Include="Vortice.WinForms" Version="3.8.3" />

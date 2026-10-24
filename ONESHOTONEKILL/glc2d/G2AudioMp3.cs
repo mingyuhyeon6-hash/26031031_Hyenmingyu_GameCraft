@@ -84,6 +84,11 @@ class G2AudioMp3 : IG2Audio
 		return _sourceVoice.State.BuffersQueued > 0;
 	}
 
+	public void SetVolume(float volume)
+	{
+		_sourceVoice.SetVolume(volume);
+	}
+
 	public void Stop()
 	{
 		_sourceVoice.Stop();

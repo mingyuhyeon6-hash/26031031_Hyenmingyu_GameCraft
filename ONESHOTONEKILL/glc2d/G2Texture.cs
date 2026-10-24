@@ -11,6 +11,7 @@ class G2Texture : IDisposable
 	private class TextureData
 	{
 		public ID2D1Bitmap Bitmap = null!;
+		public ID2D1Bitmap? GrayscaleBitmap;
 		public int Count;
 	}
 	private static readonly Dictionary<string, TextureData> TextureList = new();
@@ -19,6 +20,12 @@ class G2Texture : IDisposable
 
 	// 텍스처 데이터와 관련된 필드.
 	private TextureData? _textureData;
+
+	// 흑백 이미지는 처음 사용할 때 한 번만 만들고 재사용합니다.
+	private ID2D1Bitmap DisplayBitmap => G2AppBase.Instance?.GrayscaleEnabled == true
+		? _textureData!.GrayscaleBitmap ??= G2TextureLoader.LoadBitmap(FilePath, grayscale: true)
+			?? throw new FileNotFoundException(FilePath)
+		: _textureData!.Bitmap;
 
 	public G2Texture(string filePath)
 	{
@@ -49,14 +56,14 @@ class G2Texture : IDisposable
 	public void Draw(float opacity = 1.0f, BitmapInterpolationMode interpolationMode = BitmapInterpolationMode.Linear)
 	{
 		ID2D1RenderTarget renderTarget = G2AppBase.Instance?.RenderTarget?? throw new InvalidOperationException("G2Texture::G2AppBase instance is not initialized.");
-		renderTarget.DrawBitmap(_textureData!.Bitmap, opacity, interpolationMode);
+		renderTarget.DrawBitmap(DisplayBitmap, opacity, interpolationMode);
 	}
 
 	// 원본 Texture 크기를 유지하면서 지정한 위치에 출력합니다.
 	public void Draw(float x, float y, float opacity = 1.0f, BitmapInterpolationMode interpolationMode = BitmapInterpolationMode.Linear)
 	{
 		ID2D1RenderTarget renderTarget = G2AppBase.Instance?.RenderTarget ?? throw new InvalidOperationException("G2Texture::G2AppBase instance is not initialized.");
-		ID2D1Bitmap bitmap = _textureData!.Bitmap;
+		ID2D1Bitmap bitmap = DisplayBitmap;
 		var size = bitmap.Size;
 		Rect destination = new( x, y, size.Width, size.Height);
 		Rect source = new( 0.0f, 0.0f, size.Width, size.Height);
@@ -66,7 +73,7 @@ class G2Texture : IDisposable
 	public void Draw(Rect destination, Rect sourceRectangle, float opacity = 1.0f, BitmapInterpolationMode interpolationMode = BitmapInterpolationMode.Linear)
 	{
 		ID2D1RenderTarget renderTarget = G2AppBase.Instance?.RenderTarget?? throw new InvalidOperationException("G2Texture::G2AppBase instance is not initialized.");
-		renderTarget.DrawBitmap(_textureData!.Bitmap, destination, opacity, interpolationMode, sourceRectangle);
+		renderTarget.DrawBitmap(DisplayBitmap, destination, opacity, interpolationMode, sourceRectangle);
 	}
 
 	public void Dispose()
@@ -75,6 +82,7 @@ class G2Texture : IDisposable
 		if(_textureData.Count == 0)
 		{
 			_textureData.Bitmap.Dispose();
+			_textureData.GrayscaleBitmap?.Dispose();
 			TextureList.Remove(FilePath);
 		}
 		_textureData = null;
