@@ -29,6 +29,14 @@ internal sealed class Stage1Game : G2AppBase
     private G2Texture? _gangster;
     private G2Texture? _gangsterWalk;
     private G2Texture? _gangsterShot;
+    private G2Texture? _enemyIdle;
+    private G2Texture? _enemyHurt;
+    private G2Texture? _enemyDead;
+    private const int EnemyFrameSize = 128;
+    private const int EnemyIdleFrameCount = 7;
+    private readonly EnemyCombat _enemy = new();
+    private Vector2 _enemyPosition => _enemy.Position;
+    private double _enemyAnimationTime;
     private G2Texture? _bulletEffect;
     private CrtEffect? _crtEffect;
     private G2Audio? _backgroundMusic;
@@ -70,6 +78,9 @@ internal sealed class Stage1Game : G2AppBase
         _gangster = new G2Texture("resource/character/Gangsters_1/Idle.png");
         _gangsterWalk = new G2Texture("resource/character/Gangsters_1/Walk.png");
         _gangsterShot = new G2Texture("resource/character/Gangsters_1/Shot.png");
+        _enemyIdle = new G2Texture("resource/character/Gangsters_2/Idle.png");
+        _enemyHurt = new G2Texture("resource/character/Gangsters_2/Hurt.png");
+        _enemyDead = new G2Texture("resource/character/Gangsters_2/Dead.png");
         _bulletEffect = new G2Texture("resource/weapons/effect/All_Fire_Bullet_Pixel_16x16_00.png");
         if (G2AudioContext.Instance?.Audio != null)
         {
@@ -123,6 +134,7 @@ internal sealed class Stage1Game : G2AppBase
 
         // 대각선 이동도 같은 속도로 유지하고, 긴 프레임 뒤의 순간 이동을 방지합니다.
         float elapsed = (float)Math.Min(DeltaTime, 0.05);
+        _enemyAnimationTime += elapsed;
         _crowAnimationTime += elapsed;
         _crowX += CrowSpeed * elapsed;
         if (_crowX > ScreenSize.Width)
@@ -161,12 +173,16 @@ internal sealed class Stage1Game : G2AppBase
             _footstepCooldown = 0;
         }
 
-        // 총알은 발사할 때 정해진 방향으로 이동하고 화면을 벗어나면 삭제합니다.
+        _enemy.Update(elapsed, _position.X);
+
+        // 명중한 총알은 바로 제거하여 한 발이 여러 번 피해를 주지 않게 합니다.
         for (int i = _bullets.Count - 1; i >= 0; i--)
         {
             var bullet = _bullets[i];
+            Vector2 previousBulletPosition = bullet.Position;
             bullet.Position.X += bullet.Direction * BulletSpeed * elapsed;
-            if (bullet.Position.X < -32 || bullet.Position.X > ScreenSize.Width + 32)
+            if (_enemy.TryHit(previousBulletPosition, bullet.Position)
+                || bullet.Position.X < -32 || bullet.Position.X > ScreenSize.Width + 32)
                 _bullets.RemoveAt(i);
             else
                 _bullets[i] = bullet;
@@ -207,6 +223,10 @@ internal sealed class Stage1Game : G2AppBase
             opacity: CrowOpacity,
             interpolationMode: Vortice.Direct2D1.BitmapInterpolationMode.NearestNeighbor);
 
+        // 발 위치가 위쪽인 캐릭터부터 그려 앞뒤 관계를 유지합니다.
+        if (_enemyPosition.Y <= _position.Y)
+            DrawEnemy();
+
         int frameCount = _isMoving ? WalkFrameCount : IdleFrameCount;
         int frame = (int)(_animationTime * (_isMoving ? 10 : 8)) % frameCount;
         G2Texture? characterTexture = _isMoving ? _gangsterWalk : _gangster;
@@ -226,6 +246,8 @@ internal sealed class Stage1Game : G2AppBase
             new Rect(frame * IdleFrameSize, 0, IdleFrameSize, IdleFrameSize),
             interpolationMode: Vortice.Direct2D1.BitmapInterpolationMode.NearestNeighbor);
         RenderTarget.Transform = originalTransform;
+        if (_enemyPosition.Y > _position.Y)
+            DrawEnemy();
         foreach (var bullet in _bullets)
         {
             // 이펙트 시트에서 오른쪽을 향한 불꽃 탄환 한 칸을 사용합니다.
@@ -245,10 +267,55 @@ internal sealed class Stage1Game : G2AppBase
         string volumeText = $"음악 {_musicVolumePercent}%   F5 − / F6 +";
         _volumeFont?.DrawText(volumeText, new Rect(18, 18, 330, 28), new Color4(0f, 0f, 0f, 1f));
         _volumeFont?.DrawText(volumeText, new Rect(16, 16, 330, 28), new Color4(1f, 1f, 1f, 1f));
+        string enemyStatus = _enemy.IsDead ? "적 처치" : $"적 HP {_enemy.Health}/{EnemyCombat.MaxHealth}";
+        _volumeFont?.DrawText(enemyStatus,
+            new Rect(_enemyPosition.X + 18, _enemyPosition.Y + 26, 160, 28),
+            new Color4(1f, 1f, 1f, 1f));
+        if (_enemy.HitTime < 0.6)
+        {
+            _volumeFont?.DrawText($"-{_enemy.LastDamage}",
+                new Rect(_enemyPosition.X + 48, _enemyPosition.Y - (float)_enemy.HitTime * 35, 80, 28),
+                new Color4(1f, 0.25f, 0.2f, 1f));
+        }
+    }
+
+    private void DrawEnemy()
+    {
+        int frame = (int)(_enemyAnimationTime * 8) % EnemyIdleFrameCount;
+        G2Texture? texture = _enemyIdle;
+        if (_enemy.IsDead)
+        {
+            texture = _enemyDead;
+            // 사망 5프레임을 한 번 재생한 뒤 마지막 자세를 유지합니다.
+            frame = Math.Min((int)(_enemy.DeathTime / EnemyCombat.DeathDuration * 5), 4);
+        }
+        else if (_enemy.HitTime < EnemyCombat.HurtDuration)
+        {
+            texture = _enemyHurt;
+            frame = Math.Min((int)(_enemy.HitTime / EnemyCombat.HurtDuration * 4), 3);
+        }
+        Matrix3x2 originalTransform = RenderTarget.Transform;
+        // 원본은 오른쪽을 향하므로 플레이어가 왼쪽에 있으면 뒤집습니다.
+        if (_enemy.FacesLeft)
+        {
+            RenderTarget.Transform = Matrix3x2.CreateScale(
+                -1, 1, new Vector2(_enemyPosition.X + EnemyFrameSize / 2f, 0)) * originalTransform;
+        }
+        texture?.Draw(
+            new Rect(_enemyPosition.X, _enemyPosition.Y, EnemyFrameSize, EnemyFrameSize),
+            new Rect(frame * EnemyFrameSize, 0, EnemyFrameSize, EnemyFrameSize),
+            interpolationMode: Vortice.Direct2D1.BitmapInterpolationMode.NearestNeighbor);
+        RenderTarget.Transform = originalTransform;
     }
 
     public override void Dispose()
     {
+        _enemyHurt?.Dispose();
+        _enemyHurt = null;
+        _enemyDead?.Dispose();
+        _enemyDead = null;
+        _enemyIdle?.Dispose();
+        _enemyIdle = null;
         _volumeFont?.Dispose();
         _volumeFont = null;
         foreach (G2Audio sound in _footstepSounds)
