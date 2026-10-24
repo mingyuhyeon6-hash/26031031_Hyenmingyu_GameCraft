@@ -12,6 +12,7 @@ class G2Texture : IDisposable
 	{
 		public ID2D1Bitmap Bitmap = null!;
 		public ID2D1Bitmap? GrayscaleBitmap;
+		public ID2D1Bitmap? WhiteBitmap;
 		public int Count;
 	}
 	private static readonly Dictionary<string, TextureData> TextureList = new();
@@ -70,10 +71,14 @@ class G2Texture : IDisposable
 		renderTarget.DrawBitmap(bitmap, destination, opacity, interpolationMode, source);
 	}
 
-	public void Draw(Rect destination, Rect sourceRectangle, float opacity = 1.0f, BitmapInterpolationMode interpolationMode = BitmapInterpolationMode.Linear)
+	public void Draw(Rect destination, Rect sourceRectangle, float opacity = 1.0f, BitmapInterpolationMode interpolationMode = BitmapInterpolationMode.Linear, bool whiteSilhouette = false)
 	{
 		ID2D1RenderTarget renderTarget = G2AppBase.Instance?.RenderTarget?? throw new InvalidOperationException("G2Texture::G2AppBase instance is not initialized.");
-		renderTarget.DrawBitmap(DisplayBitmap, destination, opacity, interpolationMode, sourceRectangle);
+		ID2D1Bitmap bitmap = whiteSilhouette
+			? _textureData!.WhiteBitmap ??= G2TextureLoader.LoadBitmap(FilePath, whiteSilhouette: true)
+				?? throw new FileNotFoundException(FilePath)
+			: DisplayBitmap;
+		renderTarget.DrawBitmap(bitmap, destination, opacity, interpolationMode, sourceRectangle);
 	}
 
 	public void Dispose()
@@ -83,6 +88,7 @@ class G2Texture : IDisposable
 		{
 			_textureData.Bitmap.Dispose();
 			_textureData.GrayscaleBitmap?.Dispose();
+			_textureData.WhiteBitmap?.Dispose();
 			TextureList.Remove(FilePath);
 		}
 		_textureData = null;
