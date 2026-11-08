@@ -1,5 +1,6 @@
 ﻿
 using System.Windows.Forms;
+using Vortice.Direct2D1;
 using System.Numerics;
 using Vortice.Mathematics;
 
@@ -34,18 +35,17 @@ internal sealed class Stage1Game : G2AppBase
     private G2Texture? _enemyDead;
     private G2Texture? _enemyAttack;
     private G2Texture? _enemyGun;
-    private readonly PlayerCombat _player = new();
+    private readonly Stage1Session _stage = new();
+    private PlayerCombat _player => _stage.Player;
+    private bool _paused;
+    private bool _focusPaused;
+    private G2Font? _titleFont;
+    private G2Font? _messageFont;
+    private ID2D1SolidColorBrush? _hudBrush;
     private readonly List<(Vector2 Position, Vector2 Velocity)> _enemyBullets = new();
     private const int EnemyFrameSize = 128;
     private const int EnemyIdleFrameCount = 7;
-    // 테스트용 적: 각각 체력과 부활 시간을 따로 관리합니다.
-    private readonly List<EnemyCombat> _enemies = new()
-    {
-        new(new Vector2(450, 210)),
-        new(new Vector2(630, 250)),
-        new(new Vector2(810, 222)),
-        new(new Vector2(990, 265))
-    };
+    private IReadOnlyList<EnemyCombat> _enemies => _stage.Enemies;
     private double _enemyAnimationTime;
     private G2Texture? _bulletEffect;
     private CrtEffect? _crtEffect;
@@ -75,17 +75,22 @@ internal sealed class Stage1Game : G2AppBase
     private const float MoveSpeed = 130f;
     // 1200 x 400 화면에서 도로 위쪽 경계입니다. 캐릭터의 발을 기준으로 막습니다.
     private const float RoadTopY = 330f;
-    private Vector2 _position = new(120, 222);
+    private Vector2 _position = Stage1Session.PlayerStart;
     private bool _isMoving;
     private bool _facesLeft;
     private double _animationTime;
 
     public override System.Drawing.Size ScreenSize => new(1200, 400);
-    public override string GameName => "ONESHOTONEKILL - Stage 1";
+    public override string GameName => "LIFE OF MAFIA - Stage 1 Demo";
 
     protected override void Initialize()
     {
         _volumeFont = new G2Font("Malgun Gothic", 16);
+        _titleFont = new G2Font("Malgun Gothic", 36,
+            textAlignment: Vortice.DirectWrite.TextAlignment.Center);
+        _messageFont = new G2Font("Malgun Gothic", 18,
+            textAlignment: Vortice.DirectWrite.TextAlignment.Center);
+        _hudBrush = RenderTarget.CreateSolidColorBrush(new Color4(0, 0, 0, 0.72f));
         _crtEffect = new CrtEffect(RenderTarget);
         _hitEffect = new HitEffect(RenderTarget);
         _background = new G2Texture("resource/backgrounds/stage1.png");
@@ -120,6 +125,9 @@ internal sealed class Stage1Game : G2AppBase
 
     protected override void Update()
     {
+        _focusPaused = Form.ActiveForm == null;
+        if (_focusPaused) return;
+
         // 배경음악만 10%씩 조절하며, 총성과 발소리는 그대로 유지합니다.
         if (Form.ActiveForm != null)
         {
@@ -137,30 +145,39 @@ internal sealed class Stage1Game : G2AppBase
         // F2를 한 번 누를 때마다 TV 효과를 켜거나 끕니다.
         if (Form.ActiveForm != null && Input.IsKeyDown(Keys.F2) && _crtEffect != null)
             _crtEffect.Enabled = !_crtEffect.Enabled;
-        if (Form.ActiveForm != null && Input.IsKeyDown(Keys.R))
+        if (Input.IsKeyDown(Keys.R))
         {
-            _player.Reset();
-            _position = new Vector2(120, 222);
-            _shotTime = ShotDuration;
-            _shotCooldown = 0;
-            _enemyBullets.Clear();
-            foreach (EnemyCombat enemy in _enemies) enemy.Respawn(_position.X);
-            _bullets.Clear();
+            RestartStage();
+            return;
         }
-        bool shootHeld = !_player.IsDead && Form.ActiveForm != null && IsHeld(Keys.Z);
+        if (Input.IsKeyDown(Keys.Escape) && !_stage.Finished) _paused = !_paused;
+        if (_paused) return;
+
+        float elapsed = (float)Math.Min(DeltaTime, 0.05);
+        if (_stage.Finished)
+        {
+            _hitEffect?.Update(elapsed);
+            foreach (EnemyCombat enemy in _enemies)
+            {
+                enemy.UpdateFlash(elapsed);
+                if (enemy.IsDead) enemy.Update(elapsed, _position.X);
+            }
+            return;
+        }
+        bool shootHeld = !_player.IsDead && (IsHeld(Keys.Z) || IsHeld(Keys.Space));
         // 연사 사이에도 멈춰 있고, 키를 놓아도 마지막 사격 동작이 끝날 때까지 이동을 막습니다.
         bool movementLocked = _player.IsDead || shootHeld || _shotTime < ShotDuration;
         Vector2 direction = Vector2.Zero;
         if (Form.ActiveForm != null && !movementLocked)
         {
-            if (IsHeld(Keys.Left)) direction.X--;
-            if (IsHeld(Keys.Right)) direction.X++;
-            if (IsHeld(Keys.Up)) direction.Y--;
-            if (IsHeld(Keys.Down)) direction.Y++;
+            if (IsHeld(Keys.Left) || IsHeld(Keys.A)) direction.X--;
+            if (IsHeld(Keys.Right) || IsHeld(Keys.D)) direction.X++;
+            if (IsHeld(Keys.Up) || IsHeld(Keys.W)) direction.Y--;
+            if (IsHeld(Keys.Down) || IsHeld(Keys.S)) direction.Y++;
         }
 
         // 대각선 이동도 같은 속도로 유지하고, 긴 프레임 뒤의 순간 이동을 방지합니다.
-        float elapsed = (float)Math.Min(DeltaTime, 0.05);
+        _stage.AdvanceTime(elapsed);
         _player.Update(elapsed);
         foreach (EnemyCombat enemy in _enemies) enemy.UpdateFlash(elapsed);
         elapsed = _hitEffect?.Update(elapsed) ?? elapsed;
@@ -238,8 +255,20 @@ internal sealed class Stage1Game : G2AppBase
                 _bullets[i] = bullet;
         }
 
+        _stage.CheckOutcome();
+        if (_stage.Finished)
+        {
+            FinishStage();
+            return;
+        }
         _shotTime += elapsed;
         UpdateEnemyFire(elapsed);
+        _stage.CheckOutcome();
+        if (_stage.Finished)
+        {
+            FinishStage();
+            return;
+        }
         _shotCooldown = Math.Max(0, _shotCooldown - elapsed);
         if (!_player.IsDead && shootHeld && _shotCooldown <= 0)
         {
@@ -259,6 +288,30 @@ internal sealed class Stage1Game : G2AppBase
     }
 
     private bool IsHeld(Keys key) => Input.IsKeyDown(key) || Input.IsKeyPress(key);
+
+    private void FinishStage()
+    {
+        _enemyBullets.Clear();
+        _bullets.Clear();
+        _isMoving = false;
+        _shotTime = ShotDuration;
+        foreach (G2Audio sound in _shotSounds) sound.Stop();
+        foreach (G2Audio sound in _footstepSounds) sound.Stop();
+    }
+
+    private void RestartStage()
+    {
+        FinishStage();
+        _stage.Reset();
+        _hitEffect?.Reset();
+        _position = Stage1Session.PlayerStart;
+        _facesLeft = false;
+        _paused = false;
+        _animationTime = _enemyAnimationTime = _crowAnimationTime = 0;
+        _crowX = 200;
+        _shotCooldown = _footstepCooldown = 0;
+        _nextShotSound = _nextFootstepSound = 0;
+    }
 
     private void UpdateEnemyFire(float elapsed)
     {
@@ -401,20 +454,52 @@ internal sealed class Stage1Game : G2AppBase
         RenderTarget.Transform = screenTransform;
         // 배경과 캐릭터를 모두 그린 뒤 효과를 덮습니다.
         _crtEffect?.Draw(RenderTarget, ScreenSize.Width, ScreenSize.Height, TotalTime, GrayscaleEnabled);
-        string volumeText = $"음악 {_musicVolumePercent}%   F5 − / F6 +";
-        _volumeFont?.DrawText(volumeText, new Rect(18, 18, 330, 28), new Color4(0f, 0f, 0f, 1f));
-        _volumeFont?.DrawText(volumeText, new Rect(16, 16, 330, 28), new Color4(1f, 1f, 1f, 1f));
-        _volumeFont?.DrawText("테스트: 적 4명 · 처치 3초 후 부활 · R 전체 초기화",
-            new Rect(16, 46, 550, 28), new Color4(1f, 1f, 1f, 1f));
         foreach (EnemyCombat enemy in _enemies) DrawEnemyStatus(enemy);
-        _volumeFont?.DrawText(_player.IsDead ? "쓰러졌습니다 · R키로 다시 시작" : $"플레이어 HP {_player.Health}/100",
-            new Rect(16, 76, 500, 28), new Color4(1, 0.6f, 0.4f, 1));
+        DrawHud();
+    }
+
+    private void DrawHud()
+    {
+        if (_hudBrush == null) return;
+        _hudBrush.Color = new Color4(0.02f, 0.02f, 0.025f, 0.82f);
+        RenderTarget.FillRectangle(new Rect(0, 0, 1200, 88), _hudBrush);
+        Color4 white = new(0.95f, 0.95f, 0.92f, 1);
+        Color4 gold = new(1, 0.8f, 0.4f, 1);
+        _volumeFont?.DrawText("LIFE OF MAFIA  /  STAGE 1 DEMO",
+            new Rect(18, 10, 650, 25), gold);
+        _volumeFont?.DrawText($"목표: 적 전원 처치   {_stage.DefeatedCount} / {_enemies.Count}    경과 {_stage.PlaySeconds:0.0}초",
+            new Rect(18, 36, 650, 25), white);
+        _volumeFont?.DrawText("이동 방향키 / WASD   사격 Z / SPACE   재시작 R   일시정지 ESC",
+            new Rect(18, 62, 880, 25), white);
+        _volumeFont?.DrawText($"HP  {_player.Health} / 100",
+            new Rect(920, 10, 260, 25), _player.Health <= 30 ? new Color4(1, 0.4f, 0.3f, 1) : white);
+        _hudBrush.Color = new Color4(0.25f, 0.12f, 0.12f, 1);
+        RenderTarget.FillRectangle(new Rect(920, 39, 260, 8), _hudBrush);
+        _hudBrush.Color = new Color4(0.85f, 0.65f, 0.3f, 1);
+        RenderTarget.FillRectangle(new Rect(920, 39, 260 * _player.Health / 100f, 8), _hudBrush);
+        _volumeFont?.DrawText($"음악 {_musicVolumePercent}%  F5 - / F6 +",
+            new Rect(920, 60, 270, 25), white);
+
+        if (!_stage.Finished && !_paused && !_focusPaused) return;
+        _hudBrush.Color = new Color4(0, 0, 0, 0.65f);
+        RenderTarget.FillRectangle(new Rect(0, 88, 1200, 312), _hudBrush);
+        bool cleared = _stage.Result == Stage1Session.Outcome.Cleared;
+        string title = _stage.Finished ? cleared ? "STAGE 1 CLEAR" : "GAME OVER" : "PAUSED";
+        _titleFont?.DrawText(title, new Rect(160, 150, 880, 60),
+            cleared ? gold : _player.IsDead ? new Color4(1, 0.35f, 0.25f, 1) : white);
+        string detail = _stage.Finished
+            ? cleared ? $"모든 적을 처치했습니다.  |  기록 {_stage.PlaySeconds:0.0}초"
+                : $"쓰러졌습니다.  |  처치 {_stage.DefeatedCount} / {_enemies.Count}"
+            : _focusPaused ? "게임 창을 선택하면 돌아옵니다." : "ESC를 눌러 계속하기";
+        _messageFont?.DrawText(detail, new Rect(160, 225, 880, 30), white);
+        _messageFont?.DrawText("R  스테이지 1 다시 시작", new Rect(160, 265, 880, 30), gold);
     }
 
     private void DrawEnemyStatus(EnemyCombat enemy)
     {
         Vector2 position = enemy.Position;
-        string enemyStatus = enemy.IsDead ? $"부활 {enemy.RespawnRemaining:0.0}초" : $"HP {enemy.Health}/{EnemyCombat.MaxHealth}";
+        if (enemy.IsDead) return;
+        string enemyStatus = $"HP {enemy.Health}/{EnemyCombat.MaxHealth}";
         _volumeFont?.DrawText(enemyStatus,
             new Rect(position.X + 18, position.Y + 26, 160, 28),
             new Color4(1f, 1f, 1f, 1f));
@@ -442,7 +527,7 @@ internal sealed class Stage1Game : G2AppBase
             texture = _enemyHurt;
             frame = Math.Min((int)(enemy.HitTime / EnemyCombat.HurtDuration * 4), 3);
         }
-        else if (!_player.IsDead && (enemy.IsAiming || enemy.ShotTime < 0.2))
+        else if (!_stage.Finished && (enemy.IsAiming || enemy.ShotTime < 0.2))
         {
             texture = _enemyAttack;
             frame = enemy.ShotTime < 0.2 ? 2 : 1;
@@ -459,7 +544,7 @@ internal sealed class Stage1Game : G2AppBase
             new Rect(frame * EnemyFrameSize, 0, EnemyFrameSize, EnemyFrameSize),
             interpolationMode: Vortice.Direct2D1.BitmapInterpolationMode.NearestNeighbor,
             whiteSilhouette: enemy.FlashRemaining > 0);
-        if (!_player.IsDead && !enemy.IsDead && enemy.HitTime >= EnemyCombat.HurtDuration
+        if (!_stage.Finished && !enemy.IsDead && enemy.HitTime >= EnemyCombat.HurtDuration
             && (enemy.IsAiming || enemy.ShotTime < 0.2))
         {
             // 팔을 뻗는 동작 위에 권총을 올립니다. 좌우 반전도 함께 적용됩니다.
@@ -476,6 +561,9 @@ internal sealed class Stage1Game : G2AppBase
 
     public override void Dispose()
     {
+        _hudBrush?.Dispose();
+        _titleFont?.Dispose();
+        _messageFont?.Dispose();
         _enemyAttack?.Dispose();
         _enemyAttack = null;
         _enemyGun?.Dispose();

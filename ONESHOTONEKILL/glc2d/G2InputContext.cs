@@ -27,6 +27,8 @@ class G2InputContext : IDisposable
 	private readonly byte[] _keyCur = new byte[MaxInputKey];
 	private readonly byte[] _keyOld = new byte[MaxInputKey];
 	private readonly InputState[] _keyMap = new InputState[MaxInputKey];
+	private readonly bool[] _pendingKeyDown = new bool[MaxInputKey];
+	private readonly bool[] _eventKeyHeld = new bool[MaxInputKey];
 
 	private readonly byte[] _buttonCur = new byte[MaxInputButton];
 	private readonly byte[] _buttonOld = new byte[MaxInputButton];
@@ -63,6 +65,10 @@ class G2InputContext : IDisposable
 		}
 		_targetForm = form ?? throw new ArgumentNullException(nameof(form));
 		_targetForm.MouseWheel += OnMouseWheel;
+		_targetForm.KeyPreview = true;
+		_targetForm.KeyDown += OnKeyDown;
+		_targetForm.KeyUp += OnKeyUp;
+		_targetForm.Deactivate += OnDeactivate;
 		_mouseOldPosition = _mousePosition;
 		Instance = this;
 	}
@@ -92,6 +98,32 @@ class G2InputContext : IDisposable
 			Array.Clear(_keyCur, 0, MaxInputKey);
 			Array.Clear(_keyMap, 0, MaxInputKey);
 		}
+		// 프레임 사이에 눌렀다 놓은 짧은 입력도 다음 갱신에서 한 번 처리합니다.
+		for (int i = 0; i < MaxInputKey; i++)
+		{
+			if (_pendingKeyDown[i]) _keyMap[i] = InputState.Down;
+			_pendingKeyDown[i] = false;
+		}
+	}
+
+	private void OnKeyDown(object? sender, KeyEventArgs e)
+	{
+		int index = GetKeyIndex(e.KeyCode);
+		if (index >= MaxInputKey) return;
+		if (!_eventKeyHeld[index]) _pendingKeyDown[index] = true;
+		_eventKeyHeld[index] = true;
+	}
+
+	private void OnKeyUp(object? sender, KeyEventArgs e)
+	{
+		int index = GetKeyIndex(e.KeyCode);
+		if (index < MaxInputKey) _eventKeyHeld[index] = false;
+	}
+
+	private void OnDeactivate(object? sender, EventArgs e)
+	{
+		Array.Clear(_eventKeyHeld);
+		Array.Clear(_pendingKeyDown);
 	}
 
 	private void UpdateMouseButton()
@@ -191,6 +223,8 @@ class G2InputContext : IDisposable
 
 	public void Reset()
 	{
+		Array.Clear(_pendingKeyDown);
+		Array.Clear(_eventKeyHeld);
 		Array.Clear(_keyCur, 0, MaxInputKey);
 		Array.Clear(_keyOld, 0, MaxInputKey);
 		Array.Clear(_keyMap, 0, MaxInputKey);
@@ -225,6 +259,9 @@ class G2InputContext : IDisposable
 	public void Dispose()
 	{
 		_targetForm.MouseWheel -= OnMouseWheel;
+		_targetForm.KeyDown -= OnKeyDown;
+		_targetForm.KeyUp -= OnKeyUp;
+		_targetForm.Deactivate -= OnDeactivate;
 		Instance = null;
 	}
 }

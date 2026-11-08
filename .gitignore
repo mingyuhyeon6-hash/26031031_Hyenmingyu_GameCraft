@@ -7,6 +7,7 @@ artifacts/
 publish/
 
 # Visual Studio 임시 파일 및 개인 설정
+.codex/
 .vs/
 *.suo
 *.user

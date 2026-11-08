@@ -39,6 +39,12 @@ internal sealed class HitEffect : IDisposable
         return elapsed - stopped;
     }
 
+    public void Reset()
+    {
+        _age = 1;
+        _stopRemaining = 0;
+    }
+
     public Vector2 Shake => _age >= Duration ? Vector2.Zero :
         new Vector2(MathF.Cos(_age * 145), MathF.Sin(_age * 190) * 0.6f)
         * (_strength * (1 - _age / Duration));

@@ -7,12 +7,9 @@ internal sealed class EnemyCombat
     public const int BulletDamage = 40;
     public const double HurtDuration = 0.4;
     public const double DeathDuration = 0.5;
-    public const double RespawnDelay = 3;
     public const double FlashDuration = 0.06;
     private readonly Vector2 _spawnPosition;
-    private double _deadElapsed;
     public double FlashRemaining { get; private set; }
-    public double RespawnRemaining => IsDead ? Math.Max(0, RespawnDelay - _deadElapsed) : 0;
     public Vector2 Position { get; private set; }
     private double _fireCooldown;
     public double ShotTime { get; private set; } = 1;
@@ -28,12 +25,12 @@ internal sealed class EnemyCombat
     // 히트스톱 중에도 섬광은 실제 시간 기준으로 짧게 끝납니다.
     public void UpdateFlash(float elapsed) => FlashRemaining = Math.Max(0, FlashRemaining - elapsed);
 
-    public void Respawn(float playerX)
+    public void Reset(float playerX)
     {
         Position = _spawnPosition;
         Health = MaxHealth;
         HitTime = 1;
-        DeathTime = _deadElapsed = FlashRemaining = 0;
+        DeathTime = FlashRemaining = 0;
         LastDamage = 0;
         _knockbackVelocity = 0;
         FacesLeft = playerX < Position.X;
@@ -73,8 +70,6 @@ internal sealed class EnemyCombat
         if (IsDead)
         {
             DeathTime = Math.Min(DeathDuration, DeathTime + elapsed);
-            _deadElapsed += elapsed;
-            if (_deadElapsed >= RespawnDelay) Respawn(playerX);
         }
         else
             FacesLeft = playerX < Position.X;
