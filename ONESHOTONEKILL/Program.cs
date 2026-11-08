@@ -1,4 +1,4 @@
-﻿
+
 using System.Windows.Forms;
 using System.Numerics;
 using Vortice.Mathematics;
@@ -17,6 +17,13 @@ internal static class Program
 
 internal sealed class Stage1Game : G2AppBase
 {
+    private OpeningCutscene? _opening;
+    private DrivingScene? _driving;
+    private PixelCaption? _timeCardText;
+    private bool _showTimeCard;
+    private double _timeCardElapsed;
+    private const double TimeCardDuration = 4.0;
+    private bool _drivingMode;
     private G2Texture? _background;
     private G2Texture? _crow;
     private const int CrowFrameSize = 630;
@@ -85,10 +92,13 @@ internal sealed class Stage1Game : G2AppBase
 
     protected override void Initialize()
     {
+        _opening = new OpeningCutscene(RenderTarget);
+        _driving = new DrivingScene(RenderTarget);
+        _timeCardText = new PixelCaption(RenderTarget, new[] { "25년 전...." });
         _volumeFont = new G2Font("Malgun Gothic", 16);
         _crtEffect = new CrtEffect(RenderTarget);
         _hitEffect = new HitEffect(RenderTarget);
-        _background = new G2Texture("resource/backgrounds/stage1.png");
+        _background = new G2Texture("resource/backgrounds/MAP/stage1.png");
         _crow = new G2Texture("resource/backgrounds/crow/crow_fly.png");
         _gangster = new G2Texture("resource/character/Gangsters_1/Idle.png");
         _gangsterWalk = new G2Texture("resource/character/Gangsters_1/Walk.png");
@@ -104,7 +114,7 @@ internal sealed class Stage1Game : G2AppBase
             // 게임이 시작되면 배경음악을 반복해서 재생합니다.
             _backgroundMusic = new G2Audio("resource/music/Mansion Waltz.mp3");
             _backgroundMusic.SetVolume(_musicVolumePercent / 100f);
-            _backgroundMusic.Play(isLooping: true);
+            // Music starts when the opening ends.
 
             _footstepSounds.Add(new G2Audio("resource/music/footsteps/stone_walk_left.wav"));
             _footstepSounds.Add(new G2Audio("resource/music/footsteps/stone_walk_right.wav"));
@@ -120,6 +130,15 @@ internal sealed class Stage1Game : G2AppBase
 
     protected override void Update()
     {
+        if (Form.ActiveForm != null && Input.IsKeyDown(Keys.F3))
+        {
+            _opening?.Restart();
+            _showTimeCard = false;
+            _timeCardElapsed = 0;
+            _driving?.Stop();
+            _drivingMode = false;
+            _backgroundMusic?.Stop();
+        }
         // 배경음악만 10%씩 조절하며, 총성과 발소리는 그대로 유지합니다.
         if (Form.ActiveForm != null)
         {
@@ -130,6 +149,46 @@ internal sealed class Stage1Game : G2AppBase
                 _musicVolumePercent = Math.Clamp(_musicVolumePercent + change, 0, 100);
                 _backgroundMusic?.SetVolume(_musicVolumePercent / 100f);
             }
+        }
+        if (_opening != null && !_opening.Finished)
+        {
+            _opening.Update(DeltaTime, Form.ActiveForm != null && Input.IsKeyDown(Keys.Enter));
+            if (_opening.Finished)
+            {
+                _showTimeCard = true;
+                _timeCardElapsed = 0;
+            }
+            return;
+        }
+        if (_showTimeCard)
+        {
+            _timeCardElapsed += Math.Min(DeltaTime, 0.1);
+            if (_timeCardElapsed >= TimeCardDuration)
+            {
+                _showTimeCard = false;
+                _drivingMode = true;
+                _driving?.Start();
+            }
+            return;
+        }
+        if (Form.ActiveForm != null && Input.IsKeyDown(Keys.F4))
+        {
+            _drivingMode = !_drivingMode;
+            if (_drivingMode)
+            {
+                _backgroundMusic?.Stop();
+                _driving?.Start();
+            }
+            else
+            {
+                _driving?.Stop();
+                // Background music is temporarily disabled while the intro timing is being set.
+            }
+        }
+        if (_drivingMode)
+        {
+            _driving?.Update(DeltaTime);
+            return;
         }
         // = 키를 누를 때마다 컬러와 흑백을 전환합니다.
         if (Form.ActiveForm != null && Input.IsKeyDown(Keys.Oemplus))
@@ -304,6 +363,25 @@ internal sealed class Stage1Game : G2AppBase
 
     protected override void Render()
     {
+        if (_opening != null && !_opening.Finished)
+        {
+            _opening.Draw(RenderTarget);
+            return;
+        }
+        if (_showTimeCard)
+        {
+            RenderTarget.Clear(new Color4(0, 0, 0, 1));
+            float fadeIn = Math.Clamp((float)(_timeCardElapsed / 0.45), 0, 1);
+            float fadeOut = Math.Clamp((float)((TimeCardDuration - _timeCardElapsed) / 0.45), 0, 1);
+            _timeCardText?.Draw(RenderTarget, "25년 전....", "25년 전....".Length,
+                Math.Min(fadeIn, fadeOut), 176);
+            return;
+        }
+        if (_drivingMode)
+        {
+            _driving?.Draw(RenderTarget);
+            return;
+        }
         Matrix3x2 screenTransform = RenderTarget.Transform;
         Vector2 shake = _hitEffect?.Shake ?? Vector2.Zero;
         RenderTarget.Transform = Matrix3x2.CreateTranslation(shake) * screenTransform;
@@ -476,6 +554,12 @@ internal sealed class Stage1Game : G2AppBase
 
     public override void Dispose()
     {
+        _driving?.Dispose();
+        _driving = null;
+        _opening?.Dispose();
+        _opening = null;
+        _timeCardText?.Dispose();
+        _timeCardText = null;
         _enemyAttack?.Dispose();
         _enemyAttack = null;
         _enemyGun?.Dispose();

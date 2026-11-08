@@ -21,6 +21,7 @@ class G2Audio : IDisposable
 
 	private readonly IG2Audio _audio;
 	public string FilePath => _audio.FilePath;
+	public double PlaybackSeconds => _audio is G2AudioMp3 mp3 ? mp3.PlaybackSeconds : 0;
 
 	public G2Audio(string filePath)
 	{

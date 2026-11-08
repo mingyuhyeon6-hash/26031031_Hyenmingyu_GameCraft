@@ -21,6 +21,9 @@ class G2AudioMp3 : IG2Audio
 	private Mp3Data? _mp3Data;
 	private readonly Vortice.XAudio2.AudioBuffer _playBuffer;
 	private readonly IXAudio2SourceVoice _sourceVoice;
+	private ulong _samplesAtStart;
+	public double PlaybackSeconds => Math.Max(0,
+		((double)_sourceVoice.State.SamplesPlayed - _samplesAtStart) / _mp3Data!.Format.SampleRate);
 
 	public G2AudioMp3(string filePath)
 	{
@@ -76,6 +79,7 @@ class G2AudioMp3 : IG2Audio
 		Stop();
 		_playBuffer.LoopCount = isLooping ? (uint)XAudio2.LoopInfinite : 0;
 		_sourceVoice.SubmitSourceBuffer(_playBuffer);
+		_samplesAtStart = _sourceVoice.State.SamplesPlayed;
 		_sourceVoice.Start();
 	}
 
